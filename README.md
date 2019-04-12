@@ -1,4 +1,4 @@
-## NSDSocket.IO
+## NSD_LFImagePicker
 
 使用的他人已开源项目，根据自己业务的需求，对LFImagePickerController、LFMediaEditingController进行小修改
 * [LFImagePickerController](https://github.com/lincf0912/LFImagePickerController.git)
@@ -23,7 +23,7 @@ $ gem install cocoapods
 source 'https://github.com/CocoaPods/Specs.git'
 platform :ios, '11.0'
 
-pod 'NSDSocket.IO'
+pod 'NSD_LFImagePicker'
 ```
    
 然后运行如下命令:
