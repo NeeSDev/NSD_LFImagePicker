@@ -964,13 +964,23 @@
 //            }
             
             #pragma mark ========== fix ====================
-            LFAsset *pickAsset = [[LFAsset alloc] initWithAsset:assets.lastObject];
-            [imagePickerVc.selectedModels addObject:pickAsset];
-            [self refreshBottomToolBarStatus];
+            if(imagePickerVc.maxImagesCount != 1)
+            {
+                LFAsset *pickAsset = [[LFAsset alloc] initWithAsset:assets.lastObject];
+                [imagePickerVc.selectedModels addObject:pickAsset];
+                [self refreshBottomToolBarStatus];
+            }
             
             [imagePickerVc hideProgressHUD];
             
-            [picker dismissViewControllerAnimated:YES completion:nil];
+            __weak typeof(self) weakSelf = self;
+            [picker dismissViewControllerAnimated:YES completion:^{
+                if(imagePickerVc.maxImagesCount == 1)
+                {
+                    LFPhotoPreviewController *photoPreviewVc = [[LFPhotoPreviewController alloc] initWithModels:[weakSelf.models copy] index:[weakSelf.models count] - 1];
+                    [weakSelf pushPhotoPrevireViewController:photoPreviewVc];
+                }
+            }];
         }];
     } else {
         [imagePickerVc hideProgressHUD];

@@ -16,6 +16,13 @@
 
 @property (nonatomic, strong) UIImage *image;
 
+@property (nonatomic, copy) void(^scrollViewDidEndZooming)(void);
+
+@property (nonatomic, copy) void(^scrollViewDidEndMoving)(void);
+
+@property (nonatomic, copy) void(^clippingIsStarted)(void);
+
+
 /** 代理 */
 @property (nonatomic, weak) id<LFEditingViewDelegate> clippingDelegate;
 
@@ -26,6 +33,10 @@
 
 /** 开关编辑模式 */
 @property (nonatomic, assign) BOOL isClipping;
+@property (nonatomic, assign) BOOL isOnlyRotate;
+
+- (instancetype)initWithFrame:(CGRect)frame BottomToolBool:(BOOL)bottomToolBool;
+
 - (void)setIsClipping:(BOOL)isClipping animated:(BOOL)animated;
 
 /** 取消剪裁 */
@@ -35,6 +46,10 @@
 - (BOOL)canReset;
 /** 旋转 isClipping=YES 的情况有效 */
 - (void)rotate;
+
+- (void)resetRotate;
+- (void)resetClip;
+
 /** 长宽比例 */
 - (void)setAspectRatio:(NSString *)aspectRatio;
 
@@ -43,10 +58,16 @@
 
 - (NSArray <NSString *>*)aspectRatioDescs;
 
+- (void)resetFrame:(CGRect)frame;
+
+
+
+- (UIImage *)GetEdtingViewImage;
 @end
 
 
 @protocol LFEditingViewDelegate <NSObject>
+@optional
 /** 开始编辑目标 */
 - (void)lf_EditingViewWillBeginEditing:(LFEditingView *)EditingView;
 /** 停止编辑目标 */

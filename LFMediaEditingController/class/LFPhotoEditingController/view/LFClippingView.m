@@ -73,6 +73,44 @@ NSString *const kLFClippingViewData_zoomingView = @"LFClippingViewData_zoomingVi
     return self;
 }
 
+-(void)resetFrame:(CGRect)frame
+{
+    [self setFrame:frame];
+    _originalRect = frame;
+    self.normalRect = self.frame;
+    self.saveRect = self.frame;
+    self.contentSize = self.size;
+    
+    if (self.zoomingView)
+    {
+        [self.zoomingView resetFrame:self.bounds];
+    }
+    
+    [self resetMinimumZoomScale];
+
+    [self setZoomScale:self.zoomScale];
+    
+    /** 默认编辑范围 */
+    _editRect = self.bounds;
+}
+
+- (UIImage *)GetClippingViewImage
+{
+    UIGraphicsBeginImageContextWithOptions(self.size, YES, [[UIScreen mainScreen] scale]);;
+    
+    CGRect rect = self.bounds;
+    if ([self respondsToSelector:@selector(drawViewHierarchyInRect:afterScreenUpdates:)]) {
+        rect.origin = CGPointMake(0, 0);
+        
+        [self drawViewHierarchyInRect:rect afterScreenUpdates:NO];
+    }
+    
+    UIImage *viewImage = UIGraphicsGetImageFromCurrentImageContext();
+    NSLog(@"width = %f  ====  height = %f" ,viewImage.size.width,viewImage.size.height);
+    UIGraphicsEndImageContext();
+    return viewImage;
+}
+
 - (void)customInit
 {
     self.backgroundColor = [UIColor clearColor];
@@ -88,6 +126,7 @@ NSString *const kLFClippingViewData_zoomingView = @"LFClippingViewData_zoomingVi
     self.useGesture = NO;
     
     LFZoomingView *zoomingView = [[LFZoomingView alloc] initWithFrame:self.bounds];
+    zoomingView.backgroundColor = [UIColor clearColor];
     __weak typeof(self) weakSelf = self;
     zoomingView.moveCenter = ^BOOL(CGRect rect) {
         /** 判断缩放后贴图是否超出边界线 */
@@ -98,9 +137,6 @@ NSString *const kLFClippingViewData_zoomingView = @"LFClippingViewData_zoomingVi
     };
     [self addSubview:zoomingView];
     self.zoomingView = zoomingView;
-    
-    /** 默认编辑范围 */
-    _editRect = self.bounds;
 }
 
 - (void)setImage:(UIImage *)image
@@ -244,6 +280,67 @@ NSString *const kLFClippingViewData_zoomingView = @"LFClippingViewData_zoomingVi
     }
 }
 
+- (void)resetRotate
+{
+    /** 屏幕在滚动时 不触发该功能 */
+    if (self.dragging || self.decelerating) {
+        return;
+    }
+    if (!_isRotating) {
+        _isRotating = YES;
+        
+        _angle = 0;
+        
+        [UIView animateWithDuration:0.45f delay:0.0f usingSpringWithDamping:1.0f initialSpringVelocity:0.8f options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+            
+            [self transformRotate:self.angle];
+            
+            if ([self.clippingDelegate respondsToSelector:@selector(lf_clippingViewWillBeginZooming:)]) {
+                void (^block)(CGRect) = [self.clippingDelegate lf_clippingViewWillBeginZooming:self];
+                if (block) block(self.frame);
+            }
+            
+        } completion:^(BOOL complete) {
+            self->_isRotating = NO;
+            if ([self.clippingDelegate respondsToSelector:@selector(lf_clippingViewDidEndZooming:)]) {
+                [self.clippingDelegate lf_clippingViewDidEndZooming:self];
+            }
+        }];
+        
+    }
+}
+
+- (void)resetClip
+{
+    if (!_isReseting) {
+        _isReseting = YES;
+        [UIView animateWithDuration:0.25
+                              delay:0.0
+                            options:UIViewAnimationOptionBeginFromCurrentState
+                         animations:^{
+//                             self.transform = CGAffineTransformIdentity;
+                             self.minimumZoomScale = self.first_minimumZoomScale;
+                             [self setZoomScale:self.minimumZoomScale];
+                             self.frame = (CGRect){CGPointZero, self.zoomingView.size};
+                             self.center = CGPointMake(self.superview.center.x-self.offsetSuperCenter.x/2, self.superview.center.y-self.offsetSuperCenter.y/2);
+                             self.saveRect = self.frame;
+                             /** 重设contentSize */
+                             self.contentSize = self.zoomingView.size;
+                             /** 重置contentOffset */
+                             self.contentOffset = CGPointZero;
+                             if ([self.clippingDelegate respondsToSelector:@selector(lf_clippingViewWillBeginZooming:)]) {
+                                 void (^block)(CGRect) = [self.clippingDelegate lf_clippingViewWillBeginZooming:self];
+                                 if (block) block(self.frame);
+                             }
+                         } completion:^(BOOL finished) {
+                             if ([self.clippingDelegate respondsToSelector:@selector(lf_clippingViewDidEndZooming:)]) {
+                                 [self.clippingDelegate lf_clippingViewDidEndZooming:self];
+                             }
+                             self->_isReseting = NO;
+                         }];
+    }
+}
+
 - (BOOL)canReset
 {
     CGRect trueFrame = CGRectMake((CGRectGetWidth(self.superview.frame)-CGRectGetWidth(self.zoomingView.frame))/2-self.offsetSuperCenter.x/2
@@ -326,6 +423,9 @@ NSString *const kLFClippingViewData_zoomingView = @"LFClippingViewData_zoomingVi
     scaledWidth = MIN(scaledWidth, CGRectGetWidth(zoomViewRect) * (zoomScale / self.minimumZoomScale));
     scaledHeight = MIN(scaledHeight, CGRectGetHeight(zoomViewRect) * (zoomScale / self.minimumZoomScale));
     
+    NSLog(@"%f",(CGRectGetWidth(self.superview.bounds) - scaledWidth));
+    NSLog(@"%f",CGRectGetHeight(self.superview.bounds) - scaledHeight);
+
     /** 计算实际显示坐标 */
     CGRect cropRect = CGRectMake((CGRectGetWidth(self.superview.bounds) - scaledWidth) / 2 - self.offsetSuperCenter.x/2,
                                  (CGRectGetHeight(self.superview.bounds) - scaledHeight) / 2  - self.offsetSuperCenter.y/2,
@@ -416,6 +516,41 @@ NSString *const kLFClippingViewData_zoomingView = @"LFClippingViewData_zoomingVi
         
         _angle = newAngle;
 
+        [UIView animateWithDuration:0.45f delay:0.0f usingSpringWithDamping:1.0f initialSpringVelocity:0.8f options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+            
+            [self transformRotate:self.angle];
+            
+            if ([self.clippingDelegate respondsToSelector:@selector(lf_clippingViewWillBeginZooming:)]) {
+                void (^block)(CGRect) = [self.clippingDelegate lf_clippingViewWillBeginZooming:self];
+                if (block) block(self.frame);
+            }
+            
+        } completion:^(BOOL complete) {
+            self->_isRotating = NO;
+            if ([self.clippingDelegate respondsToSelector:@selector(lf_clippingViewDidEndZooming:)]) {
+                [self.clippingDelegate lf_clippingViewDidEndZooming:self];
+            }
+        }];
+        
+    }
+}
+
+- (void)rotateAngle:(float)angle;
+{
+    /** 屏幕在滚动时 不触发该功能 */
+    if (self.dragging || self.decelerating) {
+        return;
+    }
+    if (!_isRotating) {
+        _isRotating = YES;
+        
+        NSInteger newAngle = self.angle;
+        newAngle = newAngle + angle;
+        if (newAngle <= -360 || newAngle >= 360)
+            newAngle = 0;
+        
+        _angle = newAngle;
+        
         [UIView animateWithDuration:0.45f delay:0.0f usingSpringWithDamping:1.0f initialSpringVelocity:0.8f options:UIViewAnimationOptionBeginFromCurrentState animations:^{
             
             [self transformRotate:self.angle];

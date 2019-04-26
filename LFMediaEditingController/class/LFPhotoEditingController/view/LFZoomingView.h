@@ -17,5 +17,6 @@
 
 /** 贴图是否需要移到屏幕中心 */
 @property (nonatomic, copy) BOOL(^moveCenter)(CGRect rect);
+-(void)resetFrame:(CGRect)frame;
 @end
 

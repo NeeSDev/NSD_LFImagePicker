@@ -96,6 +96,7 @@
                 break;
             case LFContextTypeEAGL:
                 _GLKView = [[GLKView alloc] initWithFrame:self.bounds context:context.EAGLContext];
+                _GLKView.backgroundColor = [UIColor clearColor];
                 _GLKView.contentScaleFactor = self.contentScaleFactor;
                 _GLKView.delegate = self;
                 [self insertSubview:_GLKView atIndex:0];

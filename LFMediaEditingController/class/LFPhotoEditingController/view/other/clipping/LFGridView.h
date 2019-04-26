@@ -47,6 +47,7 @@ typedef NS_ENUM(NSUInteger, LFGridViewAspectRatioType) {
 /** 长宽比例描述 */
 - (NSArray <NSString *>*)aspectRatioDescs:(BOOL)horizontally;
 
+- (void)resetFrame:(CGRect)frame;
 @end
 
 @protocol LFGridViewDelegate <NSObject>

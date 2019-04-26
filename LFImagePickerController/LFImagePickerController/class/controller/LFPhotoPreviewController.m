@@ -92,7 +92,7 @@ CGFloat const naviTipsViewDefaultHeight = 30.f;
     self = [super init];
     if (self) {
         self.isHiddenNavBar = YES;
-        self.isHiddenStatusBar = YES;
+//        self.isHiddenStatusBar = YES;
     }
     return self;
 }

@@ -52,11 +52,18 @@
 - (void)zoomInToRect:(CGRect)toRect;
 /** 旋转 */
 - (void)rotateClockwise:(BOOL)clockwise;
+- (void)rotateAngle:(float)angle;
+
 /** 还原 */
 - (void)reset;
+- (void)resetRotate;
+- (void)resetClip;
 /** 取消 */
 - (void)cancel;
 
+- (void)resetFrame:(CGRect)frame;
+
+- (UIImage *)GetClippingViewImage;
 @end
 
 @protocol LFClippingViewDelegate <NSObject>

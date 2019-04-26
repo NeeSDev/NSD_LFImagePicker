@@ -62,6 +62,28 @@ NSString *const kLFZoomingViewData_filter = @"LFZoomingViewData_filter";
     }
     return self;
 }
+-(void)resetFrame:(CGRect)frame
+{
+    [self setFrame:frame];
+
+    _originalRect = frame;
+    if(self.imageView)
+    {
+        [self.imageView setFrame:self.bounds];
+    }
+    
+    if (self.splashView) {
+        [self.splashView setFrame:self.bounds];
+    }
+    
+    if (self.drawView) {
+        [self.drawView setFrame:self.bounds];
+    }
+    
+    if (self.stickerView) {
+        [self.stickerView setFrame:self.bounds];
+    }
+}
 
 - (void)customInit
 {

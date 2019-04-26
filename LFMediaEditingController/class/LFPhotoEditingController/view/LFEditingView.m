@@ -21,7 +21,7 @@
 
 #define kClipZoom_margin 20.f
 
-CGFloat const lf_editingView_drawLineWidth = 5.f;
+CGFloat const lf_editingView_drawLineWidth = 3.f;
 CGFloat const lf_editingView_splashWidth = 15.f;
 CGFloat const lf_editingView_paintWidth = 50.f;
 CGFloat const lf_editingView_stickMinScale = .2f;
@@ -62,6 +62,8 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 /** 默认最大化缩放 */
 @property (nonatomic, assign) CGFloat defaultMaximumZoomScale;
 
+@property(assign, nonatomic) BOOL bottomToolOutView;
+
 @end
 
 @implementation LFEditingView
@@ -82,6 +84,42 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     return self;
 }
 
+- (instancetype)initWithFrame:(CGRect)frame BottomToolBool:(BOOL)bottomToolBool
+{
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.bottomToolOutView = !bottomToolBool;
+        [self customInit];
+    }
+    return self;
+}
+
+-(void)resetFrame:(CGRect)frame
+{
+    [self setFrame:frame];
+    
+    
+    if (self.clipZoomView)
+    {
+        [self.clipZoomView setFrame:self.bounds];
+    }
+    
+    if (self.clippingView) {
+        [self.clippingView resetFrame:self.bounds];
+    }
+    
+    if (self.gridView) {
+        [self.gridView resetFrame:self.bounds];
+    }
+
+    self.clippingMaxRect = [self refer_clippingRect];
+
+    if (self.imagePixel) {
+        [self.imagePixel setFrame:CGRectMake(0, 0, self.width-40, 30)];
+    }
+}
+
+
 - (void)customInit
 {
     self.backgroundColor = [UIColor blackColor];
@@ -101,6 +139,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     
     /** 创建剪裁层 */
     LFClippingView *clippingView = [[LFClippingView alloc] initWithFrame:self.bounds];
+    clippingView.backgroundColor = [UIColor clearColor];
     clippingView.clippingDelegate = self;
     [self.clipZoomView addSubview:clippingView];
     self.clippingView = clippingView;
@@ -140,7 +179,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     CGFloat top = kClipZoom_margin;
     CGFloat left = kClipZoom_margin;
-    CGFloat bottom = self.editToolbarDefaultHeight + kClipZoom_margin;
+    CGFloat bottom = (self.bottomToolOutView ? 0: self.editToolbarDefaultHeight) + kClipZoom_margin;
     CGFloat right = kClipZoom_margin;
     
     return UIEdgeInsetsMake(top, left, bottom, right);
@@ -163,7 +202,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     _image = image;
     if (image) {
-        CGRect cropRect = AVMakeRectWithAspectRatioInsideRect(image.size, self.frame);
+        CGRect cropRect = AVMakeRectWithAspectRatioInsideRect(image.size, self.bounds);
         self.gridView.controlSize = cropRect.size;
         self.gridView.gridRect = cropRect;
         self.imagePixel.center = CGPointMake(CGRectGetMidX(cropRect), CGRectGetMidY(cropRect));
@@ -224,7 +263,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     _clippingRect = clippingRect;
     self.gridView.gridRect = clippingRect;
     UIEdgeInsets insets = [self refer_clippingInsets];
-    /** 计算clippingView与父界面的中心偏差坐标 */
+//    * 计算clippingView与父界面的中心偏差坐标
     self.clippingView.offsetSuperCenter = _isClipping ? CGPointMake(insets.right-insets.left, insets.bottom-insets.top) : CGPointZero;
     self.clippingView.cropRect = clippingRect;
     self.imagePixel.center = CGPointMake(CGRectGetMidX(self.gridView.gridRect), CGRectGetMidY(self.gridView.gridRect));
@@ -310,17 +349,24 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
                 self.clippingRect = AVMakeRectWithAspectRatioInsideRect(self.clippingView.size, [self refer_clippingRect]);
             } completion:^(BOOL finished) {
                 [UIView animateWithDuration:0.25f animations:^{
-                    self.gridView.alpha = 1.f;
-                    self.imagePixel.alpha = 1.f;
+
+                    self.gridView.alpha = !self.isOnlyRotate;
+                    
+                    self.imagePixel.alpha = !self.isOnlyRotate;
                 } completion:^(BOOL finished) {
                     /** 显示多余部分 */
                     self.clippingView.clipsToBounds = NO;
+                    if (self.clippingIsStarted) {
+                        self.clippingIsStarted();
+                    }
                 }];
             }];
         } else {
             self.clippingRect = AVMakeRectWithAspectRatioInsideRect(self.clippingView.size, [self refer_clippingRect]);
-            self.gridView.alpha = 1.f;
-            self.imagePixel.alpha = 1.f;
+            
+            self.gridView.alpha = !self.isOnlyRotate;
+
+            self.imagePixel.alpha = !self.isOnlyRotate;
             /** 显示多余部分 */
             self.clippingView.clipsToBounds = NO;
         }
@@ -404,6 +450,20 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     }
 }
 
+- (void)resetRotate
+{
+    if (_isClipping) {
+        [self.clippingView resetRotate];
+    }
+}
+
+- (void)resetClip
+{
+    if (_isClipping) {
+        [self.clippingView resetClip];
+    }
+}
+
 - (BOOL)canReset
 {
     if (_isClipping) {
@@ -419,6 +479,8 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
         [self.clippingView rotateClockwise:YES];
     }
 }
+
+
 
 /** 长宽比例 */
 - (void)setAspectRatio:(NSString *)aspectRatio
@@ -564,6 +626,72 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     });
 }
 
+- (UIImage *)GetEdtingViewImage
+{
+    
+    CGPoint imageOffset = CGPointMake(self.clippingView.frame.origin.x * self.zoomScale, self.clippingView.frame.origin.y * self.zoomScale);
+    
+    CGSize imageSize = CGSizeZero;
+    
+    CGPoint cropOffset = CGPointZero;
+    
+    if (imageOffset.x > 0 && imageOffset.y > 0) {
+        cropOffset = imageOffset;
+        imageSize = self.clippingView.frame.size;
+    }
+    else if ( imageOffset.x > 0) {
+        if (self.contentOffset.x > imageOffset.x) {
+            cropOffset = self.contentOffset;
+            imageSize = self.visibleSize;
+        }
+        else
+        {
+            cropOffset.x = imageOffset.x;
+            cropOffset.y = self.contentOffset.y;
+
+            imageSize.height = self.visibleSize.height;
+            imageSize.width = self.visibleSize.width - (imageOffset.x - self.contentOffset.x)*2;
+        }
+        
+    }
+    else if(imageOffset.y > 0) {
+        if (self.contentOffset.y > imageOffset.y) {
+            cropOffset = self.contentOffset;
+            imageSize = self.visibleSize;
+        }
+        else
+        {
+            cropOffset.y = imageOffset.y;
+            cropOffset.x = self.contentOffset.x;
+            
+            imageSize.height = self.visibleSize.height - (imageOffset.y - self.contentOffset.y)*2;
+            imageSize.width = self.visibleSize.width;
+        }
+    }
+    
+    
+    UIGraphicsBeginImageContextWithOptions(imageSize, YES, [[UIScreen mainScreen] scale]);;
+
+    CGRect rect = self.clipZoomView.frame;
+    if ([self.clipZoomView respondsToSelector:@selector(drawViewHierarchyInRect:afterScreenUpdates:)]) {
+        rect.origin.x -= cropOffset.x;
+        rect.origin.y -= cropOffset.y;
+
+        
+        [self.clipZoomView drawViewHierarchyInRect:rect afterScreenUpdates:NO];
+    }
+
+    UIImage *viewImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    
+    NSLog(@"self.clippingView = %@" ,NSStringFromCGRect(self.clippingView.frame));
+    NSLog(@"self.clipZoomView = %@" ,NSStringFromCGRect(self.clipZoomView.frame));
+    NSLog(@"self.visibleSize = %@" ,NSStringFromCGSize(self.visibleSize));
+    NSLog(@"self.contentOffset = %@" ,NSStringFromCGPoint(self.contentOffset));
+
+    return viewImage;
+}
+
 #pragma mark - LFClippingViewDelegate
 - (void (^)(CGRect))lf_clippingViewWillBeginZooming:(LFClippingView *)clippingView
 {
@@ -699,9 +827,39 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     /** 重置contentSize */
     [self resetContentSize];
+    
+    if(self.scrollViewDidEndZooming)
+    {
+        self.scrollViewDidEndZooming();
+    }
 }
 
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView
+{
+    
+}
 
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
+{
+    if(self.scrollViewDidEndMoving)
+    {
+        self.scrollViewDidEndMoving();
+    }
+}
+
+-(void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
+{
+    if (decelerate) {
+        
+    }
+    else
+    {
+        if(self.scrollViewDidEndMoving)
+        {
+            self.scrollViewDidEndMoving();
+        }
+    }
+}
 #pragma mark - 重写父类方法
 
 - (BOOL)touchesShouldBegin:(NSSet *)touches withEvent:(UIEvent *)event inContentView:(UIView *)view {
@@ -778,11 +936,11 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 - (void)setSubViewData
 {
     /** 默认绘画线粗 */
-    [self setDrawLineWidth:lf_editingView_drawLineWidth/self.zoomScale];
+    [self setDrawLineWidth:lf_editingView_drawLineWidth/*/self.zoomScale*/];
     /** 默认马赛克大小 */
-    [self setSplashWidth:lf_editingView_splashWidth/self.zoomScale];
+    [self setSplashWidth:lf_editingView_splashWidth/*/self.zoomScale*/];
     /** 默认画笔大小 */
-    [self setPaintWidth:lf_editingView_paintWidth/self.zoomScale];
+    [self setPaintWidth:lf_editingView_paintWidth/*/self.zoomScale*/];
     /** 屏幕缩放率 */
     [self setScreenScale:self.zoomScale];
 }
@@ -790,7 +948,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 - (void)fixedLongImage
 {
     /** 竖图 */
-//    if (self.clippingView.frame.size.width < self.frame.size.width)
+    if (self.clippingView.frame.size.width < self.frame.size.width/2.0f)
     {
         /** 屏幕大小的缩放比例 */
         CGFloat zoomScale = (self.frame.size.width / self.clippingView.frame.size.width);

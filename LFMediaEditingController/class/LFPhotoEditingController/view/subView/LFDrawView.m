@@ -27,6 +27,11 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
 {
     BOOL _isWork;
     BOOL _isBegan;
+    BOOL _isFirstLine;
+
+    CGPoint pts[5];// we now need to keep track of the four points of a Bezier segment and the first control point of the next segment
+    
+    uint ctr;
 }
 /** 笔画 */
 @property (nonatomic, strong) NSMutableArray <LFDrawBezierPath *>*lineArray;
@@ -93,7 +98,7 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     if ([event allTouches].count == 1) {
         _isWork = NO;
         _isBegan = YES;
-        
+        _isFirstLine = YES;
         //1、每次触摸的时候都应该去创建一条贝塞尔曲线
         LFDrawBezierPath *path = [LFDrawBezierPath new];
         //2、移动画笔
@@ -103,7 +108,7 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
         path.lineWidth = self.lineWidth;
         path.lineCapStyle = kCGLineCapRound; //线条拐角
         path.lineJoinStyle = kCGLineJoinRound; //终点处理
-        [path moveToPoint:point];
+//        [path moveToPoint:point];
         //设置颜色
         path.color = self.lineColor;//保存线条当前颜色
         [self.lineArray addObject:path];
@@ -111,6 +116,9 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
         CAShapeLayer *slayer = [self createShapeLayer:path];
         [self.layer addSublayer:slayer];
         [self.slayerArray addObject:slayer];
+        
+        ctr = 0;
+        pts[ctr++] = point;
         
     }
     [super touchesBegan:touches withEvent:event];
@@ -121,22 +129,71 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     if (_isBegan || _isWork) {
         UITouch *touch = [touches anyObject];
         CGPoint point = [touch locationInView:self];
+        UIView *superView = self.superview;
+        while(superView) {
+            if ([superView isKindOfClass:NSClassFromString(@"LFEditingView")]) {
+                break;
+            }
+            else
+            {
+                superView = superView.superview;
+            }
+        }
+        
+        UIScrollView *scrollView = (UIScrollView *)superView;
+        CGSize visibleSize = scrollView.visibleSize;
+        CGPoint superPoint = [touch locationInView:superView];
+        float zoomScale = scrollView.zoomScale;
+        if(superPoint.x < scrollView.contentOffset.x)
+        {
+            point.x += (scrollView.contentOffset.x - superPoint.x)/zoomScale;
+        }
+        else if(superPoint.x > scrollView.contentOffset.x + visibleSize.width)
+        {
+            point.x -= (superPoint.x - (scrollView.contentOffset.x + visibleSize.width))/zoomScale;
+        }
+        
+        if(superPoint.y < scrollView.contentOffset.y)
+        {
+            point.y += (scrollView.contentOffset.y - superPoint.y)/zoomScale;
+        }
+        else if(superPoint.y > scrollView.contentOffset.y + visibleSize.height)
+        {
+            point.y -= (superPoint.y - (scrollView.contentOffset.y + visibleSize.height))/zoomScale;
+        }
+        
         LFDrawBezierPath *path = self.lineArray.lastObject;
+        NSLog(@"%f   %f",point.x,point.y);
         if (!CGPointEqualToPoint(path.currentPoint, point)) {
             if (_isBegan && self.drawBegan) self.drawBegan();
             if (self.drawProcess) self.drawProcess(point);
             _isBegan = NO;
             _isWork = YES;
-            [path addLineToPoint:point];
-            CAShapeLayer *slayer = self.slayerArray.lastObject;
-            slayer.path = path.CGPath;
-        }        
+            
+            pts[ctr++] = point;
+            if (ctr == 5) {
+                [self drawLineWithRecordPoint];
+            }
+        }
     }
     
     [super touchesMoved:touches withEvent:event];
 }
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(nullable UIEvent *)event{
+    
+    UITouch *touch = [touches anyObject];
+    CGPoint point = [touch locationInView:self];
+    LFDrawBezierPath *path = self.lineArray.lastObject;
+    if(!CGPointEqualToPoint(path.currentPoint, point)) {
+        _isBegan = NO;
+        _isWork = YES;
+        
+        pts[ctr++] = point;
+    }
+    
+    [self drawLineWithRecordPoint];
+
     if (_isWork) {
         if (self.drawEnded) self.drawEnded();
     } else {
@@ -146,7 +203,7 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     }
     _isBegan = NO;
     _isWork = NO;
-    
+    ctr = 0;
     [super touchesEnded:touches withEvent:event];
 }
 
@@ -161,18 +218,55 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     }
     _isBegan = NO;
     _isWork = NO;
-    
+    ctr = 0;
     [super touchesCancelled:touches withEvent:event];
 }
 
-//- (void)drawRect:(CGRect)rect{
-//    //遍历数组，绘制曲线
-//    for (LFDrawBezierPath *path in self.lineArray) {
-//        [path.color setStroke];
-//        [path setLineCapStyle:kCGLineCapRound];
-//        [path stroke];
-//    }
-//}
+- (void)drawLineWithRecordPoint
+{
+    LFDrawBezierPath *path = self.lineArray.lastObject;
+    if (_isFirstLine && ctr == 2) {
+        [path moveToPoint:pts[0]];
+        [path addLineToPoint:pts[1]];
+    }
+    else if (_isFirstLine && ctr == 3)
+    {
+        [path moveToPoint:pts[0]];
+        [path addCurveToPoint:pts[2] controlPoint1:pts[0] controlPoint2:pts[1]];// this is how a Bezier curve is appended to a path. We are adding a cubic Bezier from pt[0] to pt[3], with control points pt[1] and pt[2]
+    }
+    else if (_isFirstLine && ctr == 4)
+    {
+        [path moveToPoint:pts[0]];
+        [path addCurveToPoint:pts[3] controlPoint1:pts[1] controlPoint2:pts[2]];// this is how a Bezier curve is appended to a path. We are adding a cubic Bezier from pt[0] to pt[3], with control points pt[1] and pt[2]
+    }
+    else if (ctr == 5)
+    {
+        _isFirstLine = NO;
+        pts[3] = CGPointMake((pts[2].x+ pts[4].x)/2.0, (pts[2].y+ pts[4].y)/2.0);// move the endpoint to the middle of the line joining the second control point of the first Bezier segment and the first control point of the second Bezier segment
+        
+        
+        
+        [path moveToPoint:pts[0]];
+        
+        [path addCurveToPoint:pts[3]controlPoint1:pts[1]controlPoint2:pts[2]];// add a cubic Bezier from pt[0] to pt[3], with control points pt[1] and pt[2]
+
+        // replace points and get ready to handle the next segment
+        
+        pts[0] = pts[3];
+        
+        pts[1] = pts[4];
+        
+        ctr = 2;
+    }
+    else
+    {
+        return;
+    }
+    
+    CAShapeLayer *slayer = self.slayerArray.lastObject;
+    slayer.path = path.CGPath;
+    return;
+}
 
 - (BOOL)isDrawing
 {

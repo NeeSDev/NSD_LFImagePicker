@@ -50,6 +50,21 @@ const CGFloat kControlWidth = 30.f;
     return self;
 }
 
+-(void)resetFrame:(CGRect)frame
+{
+    [self setFrame:frame];
+
+    self.gridRect = CGRectInset(self.bounds, 20, 20);
+    self.controlMaxRect = CGRectInset(self.bounds, 20, 20);
+    if (self.gridMaskLayer) {
+        self.gridMaskLayer.frame = self.bounds;
+    }
+    
+    if (self.gridLayer) {
+        self.gridLayer.frame = self.bounds;
+    }
+}
+
 - (void)customInit
 {
     /** 遮罩 */
@@ -69,9 +84,8 @@ const CGFloat kControlWidth = 30.f;
     [self.layer addSublayer:gridLayer];
     self.gridLayer = gridLayer;
     
-    self.gridRect = CGRectInset(self.bounds, 20, 20);
+    
     self.controlMinSize = CGSizeMake(80, 80);
-    self.controlMaxRect = CGRectInset(self.bounds, 20, 20);
     self.controlSize = CGSizeZero;
     /** 遮罩范围 */
     self.showMaskLayer = YES;
