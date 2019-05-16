@@ -286,6 +286,9 @@ NSString *const kLFZoomingViewData_filter = @"LFZoomingViewData_filter";
 - (void)setDrawEnable:(BOOL)drawEnable
 {
     _drawView.userInteractionEnabled = drawEnable;
+    
+    _stickerView.hidden = drawEnable;
+    _splashView.hidden = drawEnable;
 }
 - (BOOL)drawEnable
 {

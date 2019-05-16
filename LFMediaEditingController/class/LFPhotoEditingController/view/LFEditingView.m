@@ -52,6 +52,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 @property (nonatomic, assign) CGSize referenceSize;
 
 /* 底部栏高度 默认44 */
+@property(assign, nonatomic) BOOL bottomShow;
 @property (nonatomic, assign) CGFloat editToolbarDefaultHeight;
 
 @property (nonatomic, copy) lf_me_dispatch_cancelable_block_t maskViewBlock;
@@ -61,8 +62,6 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 
 /** 默认最大化缩放 */
 @property (nonatomic, assign) CGFloat defaultMaximumZoomScale;
-
-@property(assign, nonatomic) BOOL bottomToolOutView;
 
 @end
 
@@ -79,46 +78,21 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     self = [super initWithFrame:frame];
     if (self) {
+        self.bottomShow = YES;
         [self customInit];
     }
     return self;
 }
 
-- (instancetype)initWithFrame:(CGRect)frame BottomToolBool:(BOOL)bottomToolBool
+- (instancetype)initWithFrame:(CGRect)frame BottomShow:(BOOL)isShow
 {
     self = [super initWithFrame:frame];
     if (self) {
-        self.bottomToolOutView = !bottomToolBool;
+        self.bottomShow = isShow;
         [self customInit];
     }
     return self;
 }
-
--(void)resetFrame:(CGRect)frame
-{
-    [self setFrame:frame];
-    
-    
-    if (self.clipZoomView)
-    {
-        [self.clipZoomView setFrame:self.bounds];
-    }
-    
-    if (self.clippingView) {
-        [self.clippingView resetFrame:self.bounds];
-    }
-    
-    if (self.gridView) {
-        [self.gridView resetFrame:self.bounds];
-    }
-
-    self.clippingMaxRect = [self refer_clippingRect];
-
-    if (self.imagePixel) {
-        [self.imagePixel setFrame:CGRectMake(0, 0, self.width-40, 30)];
-    }
-}
-
 
 - (void)customInit
 {
@@ -179,7 +153,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     CGFloat top = kClipZoom_margin;
     CGFloat left = kClipZoom_margin;
-    CGFloat bottom = (self.bottomToolOutView ? 0: self.editToolbarDefaultHeight) + kClipZoom_margin;
+    CGFloat bottom =  (self.bottomShow ?self.editToolbarDefaultHeight:0) + kClipZoom_margin;
     CGFloat right = kClipZoom_margin;
     
     return UIEdgeInsetsMake(top, left, bottom, right);
@@ -202,7 +176,7 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     _image = image;
     if (image) {
-        CGRect cropRect = AVMakeRectWithAspectRatioInsideRect(image.size, self.bounds);
+        CGRect cropRect = AVMakeRectWithAspectRatioInsideRect(image.size, self.frame);
         self.gridView.controlSize = cropRect.size;
         self.gridView.gridRect = cropRect;
         self.imagePixel.center = CGPointMake(CGRectGetMidX(cropRect), CGRectGetMidY(cropRect));
@@ -320,6 +294,27 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     [self setIsClipping:isClipping animated:NO];
 }
+
+-(void)setIsOnlyRotate:(BOOL)isOnlyRotate
+{
+    _isOnlyRotate = isOnlyRotate;
+    self.gridView.hidden = isOnlyRotate;
+    self.imagePixel.hidden = isOnlyRotate;
+    self.clippingView.clipsToBounds = isOnlyRotate;
+    
+    self.clippingView.useGesture = isOnlyRotate;
+}
+
+-(void)setIsOnlyClipping:(BOOL)isOnlyClipping
+{
+    _isOnlyClipping = isOnlyClipping;
+    self.gridView.hidden = self.isOnlyRotate;
+    self.imagePixel.hidden = self.isOnlyRotate;
+    self.clippingView.clipsToBounds = self.isOnlyRotate;
+    
+    self.clippingView.useGesture = !self.isOnlyRotate;
+}
+
 - (void)setIsClipping:(BOOL)isClipping animated:(BOOL)animated
 {
     if (!self.image) {
@@ -328,8 +323,9 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     }
     self.editedOperation = LFEditingViewOperationNone;
     _isClipping = isClipping;
-    self.clippingView.useGesture = isClipping;
-    
+    if(!isClipping)
+        self.clippingView.useGesture = NO;
+
     if (isClipping) {
         [UIView animateWithDuration:(animated ? 0.125f : 0) animations:^{
             [self setZoomScale:self.minimumZoomScale];
@@ -349,24 +345,19 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
                 self.clippingRect = AVMakeRectWithAspectRatioInsideRect(self.clippingView.size, [self refer_clippingRect]);
             } completion:^(BOOL finished) {
                 [UIView animateWithDuration:0.25f animations:^{
-
-                    self.gridView.alpha = !self.isOnlyRotate;
-                    
-                    self.imagePixel.alpha = !self.isOnlyRotate;
-                } completion:^(BOOL finished) {
-                    /** 显示多余部分 */
-                    self.clippingView.clipsToBounds = NO;
-                    if (self.clippingIsStarted) {
-                        self.clippingIsStarted();
+                    self.gridView.alpha = 1.f;
+                    self.imagePixel.alpha = 1.f;
+                } completion:^(BOOL finished) {                    
+                    if (self.viewHasChangedBlock) {
+                        self.viewHasChangedBlock();
                     }
+                    
                 }];
             }];
         } else {
             self.clippingRect = AVMakeRectWithAspectRatioInsideRect(self.clippingView.size, [self refer_clippingRect]);
-            
-            self.gridView.alpha = !self.isOnlyRotate;
-
-            self.imagePixel.alpha = !self.isOnlyRotate;
+            self.gridView.alpha = 1.f;
+            self.imagePixel.alpha = 1.f;
             /** 显示多余部分 */
             self.clippingView.clipsToBounds = NO;
         }
@@ -383,6 +374,10 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
                 [UIView animateWithDuration:0.25f animations:^{
                     CGRect cropRect = AVMakeRectWithAspectRatioInsideRect(self.clippingView.size, self.bounds);
                     self.clippingRect = cropRect;
+                } completion:^(BOOL finished) {
+                    if (self.viewHasChangedBlock) {
+                        self.viewHasChangedBlock();
+                    }
                 }];
                 
                 [UIView animateWithDuration:0.125f delay:0.125f options:UIViewAnimationOptionCurveEaseOut animations:^{
@@ -450,17 +445,17 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     }
 }
 
-- (void)resetRotate
-{
-    if (_isClipping) {
-        [self.clippingView resetRotate];
-    }
-}
-
 - (void)resetClip
 {
     if (_isClipping) {
         [self.clippingView resetClip];
+    }
+}
+
+- (void)resetRotate
+{
+    if (_isClipping) {
+        [self.clippingView resetRotate];
     }
 }
 
@@ -479,8 +474,6 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
         [self.clippingView rotateClockwise:YES];
     }
 }
-
-
 
 /** 长宽比例 */
 - (void)setAspectRatio:(NSString *)aspectRatio
@@ -629,65 +622,44 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 - (UIImage *)GetEdtingViewImage
 {
     
-    CGPoint imageOffset = CGPointMake(self.clippingView.frame.origin.x * self.zoomScale, self.clippingView.frame.origin.y * self.zoomScale);
+    CGPoint contentOffset = self.contentOffset;
+    CGSize visibleSize = self.visibleSize;
     
-    CGSize imageSize = CGSizeZero;
-    
-    CGPoint cropOffset = CGPointZero;
-    
-    if (imageOffset.x > 0 && imageOffset.y > 0) {
-        cropOffset = imageOffset;
-        imageSize = self.clippingView.frame.size;
-    }
-    else if ( imageOffset.x > 0) {
-        if (self.contentOffset.x > imageOffset.x) {
-            cropOffset = self.contentOffset;
-            imageSize = self.visibleSize;
+    CGPoint point = self.clippingView.frame.origin;
+    CGSize size = self.clippingView.frame.size;
+
+    CGRect clipRectResult;
+    if (contentOffset.x > point.x ) {
+        if (contentOffset.y > point.y) {
+            clipRectResult = CGRectMake(contentOffset.x, contentOffset.y, visibleSize.width, visibleSize.height);
         }
         else
         {
-            cropOffset.x = imageOffset.x;
-            cropOffset.y = self.contentOffset.y;
-
-            imageSize.height = self.visibleSize.height;
-            imageSize.width = self.visibleSize.width - (imageOffset.x - self.contentOffset.x)*2;
+            clipRectResult = CGRectMake(contentOffset.x, point.y, visibleSize.width, size.height);
         }
-        
     }
-    else if(imageOffset.y > 0) {
-        if (self.contentOffset.y > imageOffset.y) {
-            cropOffset = self.contentOffset;
-            imageSize = self.visibleSize;
+    else {
+        if (contentOffset.y > point.y) {
+            clipRectResult = CGRectMake(point.x, contentOffset.y, size.width, visibleSize.height);
         }
         else
         {
-            cropOffset.y = imageOffset.y;
-            cropOffset.x = self.contentOffset.x;
-            
-            imageSize.height = self.visibleSize.height - (imageOffset.y - self.contentOffset.y)*2;
-            imageSize.width = self.visibleSize.width;
+            clipRectResult = CGRectMake(point.x, point.y, size.width, size.height);
         }
     }
     
+    UIGraphicsBeginImageContextWithOptions(clipRectResult.size, NO, [[UIScreen mainScreen] scale]);;
+    //    UIBezierPath *clipRectPath = [UIBezierPath bezierPathWithRect:realClipZoomRect];
+    //    [clipRectPath addClip]; //添加裁剪区域，此步骤必须在图片绘制到上下文之前做
     
-    UIGraphicsBeginImageContextWithOptions(imageSize, YES, [[UIScreen mainScreen] scale]);;
-
-    CGRect rect = self.clipZoomView.frame;
     if ([self.clipZoomView respondsToSelector:@selector(drawViewHierarchyInRect:afterScreenUpdates:)]) {
-        rect.origin.x -= cropOffset.x;
-        rect.origin.y -= cropOffset.y;
-
+        CGRect drawRect = self.clipZoomView.frame;
+        drawRect.origin = CGPointMake(-clipRectResult.origin.x, -clipRectResult.origin.y);
         
-        [self.clipZoomView drawViewHierarchyInRect:rect afterScreenUpdates:NO];
+        [self.clipZoomView drawViewHierarchyInRect:drawRect afterScreenUpdates:NO];
     }
-
     UIImage *viewImage = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    
-    NSLog(@"self.clippingView = %@" ,NSStringFromCGRect(self.clippingView.frame));
-    NSLog(@"self.clipZoomView = %@" ,NSStringFromCGRect(self.clipZoomView.frame));
-    NSLog(@"self.visibleSize = %@" ,NSStringFromCGSize(self.visibleSize));
-    NSLog(@"self.contentOffset = %@" ,NSStringFromCGPoint(self.contentOffset));
 
     return viewImage;
 }
@@ -827,39 +799,31 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
 {
     /** 重置contentSize */
     [self resetContentSize];
-    
-    if(self.scrollViewDidEndZooming)
+    if (self.viewHasChangedBlock)
     {
-        self.scrollViewDidEndZooming();
+        self.viewHasChangedBlock();
     }
 }
 
-- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView
+-(void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
 {
-    
-}
-
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
-{
-    if(self.scrollViewDidEndMoving)
+    if (self.viewHasChangedBlock)
     {
-        self.scrollViewDidEndMoving();
+        self.viewHasChangedBlock();
     }
 }
 
 -(void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
 {
-    if (decelerate) {
-        
-    }
-    else
-    {
-        if(self.scrollViewDidEndMoving)
+    if (!decelerate) {
+        if (self.viewHasChangedBlock)
         {
-            self.scrollViewDidEndMoving();
+            self.viewHasChangedBlock();
         }
     }
 }
+
+
 #pragma mark - 重写父类方法
 
 - (BOOL)touchesShouldBegin:(NSSet *)touches withEvent:(UIEvent *)event inContentView:(UIView *)view {
@@ -1027,6 +991,8 @@ typedef NS_ENUM(NSUInteger, LFEditingViewOperation) {
     /** 禁止移动 */
     self.panGestureRecognizer.enabled = !drawEnable;
     self.clippingView.drawEnable = drawEnable;
+    self.gridView.hidden = drawEnable;
+    self.imagePixel.hidden = drawEnable;
 }
 - (BOOL)drawEnable
 {
