@@ -165,13 +165,15 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
         LFDrawBezierPath *path = self.lineArray.lastObject;
         NSLog(@"%f   %f",point.x,point.y);
         if (!CGPointEqualToPoint(path.currentPoint, point)) {
-            if (_isBegan && self.drawBegan) self.drawBegan();
-            if (self.drawProcess) self.drawProcess(point);
-            _isBegan = NO;
-            _isWork = YES;
+           
             
             pts[ctr++] = point;
             if (ctr == 5) {
+                
+                if (_isBegan && self.drawBegan) self.drawBegan();
+                if (self.drawProcess) self.drawProcess(point);
+                _isBegan = NO;
+                _isWork = YES;
                 [self drawLineWithRecordPoint];
             }
         }
@@ -182,17 +184,17 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(nullable UIEvent *)event{
     
-    UITouch *touch = [touches anyObject];
-    CGPoint point = [touch locationInView:self];
-    LFDrawBezierPath *path = self.lineArray.lastObject;
-    if(!CGPointEqualToPoint(path.currentPoint, point)) {
-        _isBegan = NO;
-        _isWork = YES;
-        
-        pts[ctr++] = point;
-    }
-    
-    [self drawLineWithRecordPoint];
+//    UITouch *touch = [touches anyObject];
+//    CGPoint point = [touch locationInView:self];
+//    LFDrawBezierPath *path = self.lineArray.lastObject;
+//    if(!CGPointEqualToPoint(path.currentPoint, point)) {
+//        _isBegan = NO;
+//        _isWork = YES;
+//
+//        pts[ctr++] = point;
+//    }
+//
+//    [self drawLineWithRecordPoint];
 
     if (_isWork) {
         if (self.drawEnded) self.drawEnded();
