@@ -287,6 +287,8 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     [self.slayerArray.lastObject removeFromSuperlayer];
     [self.slayerArray removeLastObject];
     [self.lineArray removeLastObject];
+
+    if (self.drawEnded) self.drawEnded();
 }
 
 //撤销所有
@@ -297,6 +299,8 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     }
     [self.slayerArray removeAllObjects];
     [self.lineArray removeAllObjects];
+
+    if (self.drawEnded) self.drawEnded();
 }
 #pragma mark  - 数据
 - (NSDictionary *)data
