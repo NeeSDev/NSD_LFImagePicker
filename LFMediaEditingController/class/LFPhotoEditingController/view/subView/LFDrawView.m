@@ -27,7 +27,6 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
 {
     BOOL _isWork;
     BOOL _isBegan;
-    BOOL _isFirstLine;
 
     CGPoint pts[5];// we now need to keep track of the four points of a Bezier segment and the first control point of the next segment
     
@@ -98,7 +97,6 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     if ([event allTouches].count == 1) {
         _isWork = NO;
         _isBegan = YES;
-        _isFirstLine = YES;
         //1、每次触摸的时候都应该去创建一条贝塞尔曲线
         LFDrawBezierPath *path = [LFDrawBezierPath new];
         //2、移动画笔
@@ -165,7 +163,9 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
         LFDrawBezierPath *path = self.lineArray.lastObject;
         NSLog(@"%f   %f",point.x,point.y);
         if (!CGPointEqualToPoint(path.currentPoint, point)) {
-           
+            if (ctr >= 5) {
+                return;
+            }
             
             pts[ctr++] = point;
             if (ctr == 5) {
@@ -174,7 +174,7 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
                 if (self.drawProcess) self.drawProcess(point);
                 _isBegan = NO;
                 _isWork = YES;
-                [self drawLineWithRecordPoint];
+                [self drawLineWithRecordPoint:NO];
             }
         }
     }
@@ -184,20 +184,23 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(nullable UIEvent *)event{
     
-//    UITouch *touch = [touches anyObject];
-//    CGPoint point = [touch locationInView:self];
-//    LFDrawBezierPath *path = self.lineArray.lastObject;
-//    if(!CGPointEqualToPoint(path.currentPoint, point)) {
-//        _isBegan = NO;
-//        _isWork = YES;
-//
-//        pts[ctr++] = point;
-//    }
-//
-//    [self drawLineWithRecordPoint];
+    UITouch *touch = [touches anyObject];
+    CGPoint point = [touch locationInView:self];
+    LFDrawBezierPath *path = self.lineArray.lastObject;
+    if(!CGPointEqualToPoint(path.currentPoint, point)) {
+        _isBegan = NO;
+        _isWork = YES;
+
+        pts[ctr++] = point;
+    }
+
+    [self drawLineWithRecordPoint:YES];
 
     if (_isWork) {
-        if (self.drawEnded) self.drawEnded();
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (self.drawEnded) self.drawEnded();
+        });
+        
     } else {
         if ((_isBegan)) {
             [self undo];
@@ -224,26 +227,35 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     [super touchesCancelled:touches withEvent:event];
 }
 
-- (void)drawLineWithRecordPoint
+- (void)drawLineWithRecordPoint:(BOOL)mustDraw
 {
     LFDrawBezierPath *path = self.lineArray.lastObject;
-    if (_isFirstLine && ctr == 2) {
+    if (mustDraw && ctr == 2) {
         [path moveToPoint:pts[0]];
         [path addLineToPoint:pts[1]];
     }
-    else if (_isFirstLine && ctr == 3)
+    else if (mustDraw && ctr == 3)
     {
         [path moveToPoint:pts[0]];
-        [path addCurveToPoint:pts[2] controlPoint1:pts[0] controlPoint2:pts[1]];// this is how a Bezier curve is appended to a path. We are adding a cubic Bezier from pt[0] to pt[3], with control points pt[1] and pt[2]
+        [path addQuadCurveToPoint:pts[2] controlPoint:pts[1]];// this is how a Bezier curve is appended to a path. We are adding a cubic Bezier from pt[0] to pt[3], with control points pt[1] and pt[2]
     }
-    else if (_isFirstLine && ctr == 4)
+    else if (mustDraw && ctr == 4)
     {
         [path moveToPoint:pts[0]];
         [path addCurveToPoint:pts[3] controlPoint1:pts[1] controlPoint2:pts[2]];// this is how a Bezier curve is appended to a path. We are adding a cubic Bezier from pt[0] to pt[3], with control points pt[1] and pt[2]
     }
-    else if (ctr == 5)
+    else if (mustDraw && ctr == 5)
     {
-        _isFirstLine = NO;
+        [path moveToPoint:pts[0]];
+        [path addQuadCurveToPoint:pts[2] controlPoint:pts[1]];
+
+        [path moveToPoint:pts[2]];
+        
+        [path addCurveToPoint:pts[4]controlPoint1:CGPointMake((pts[3].x+ pts[4].x)/2.0, (pts[3].y+ pts[4].y)/2.0) controlPoint2:pts[3]];
+
+    }
+    else if ( ctr == 5)
+    {
         pts[3] = CGPointMake((pts[2].x+ pts[4].x)/2.0, (pts[2].y+ pts[4].y)/2.0);// move the endpoint to the middle of the line joining the second control point of the first Bezier segment and the first control point of the second Bezier segment
         
         
@@ -262,6 +274,7 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     }
     else
     {
+        ctr = 0;
         return;
     }
     
@@ -288,7 +301,9 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     [self.slayerArray removeLastObject];
     [self.lineArray removeLastObject];
 
-    if (self.drawEnded) self.drawEnded();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (self.drawEnded) self.drawEnded();
+    });
 }
 
 //撤销所有
@@ -300,8 +315,11 @@ NSString *const kLFDrawViewData = @"LFDrawViewData";
     [self.slayerArray removeAllObjects];
     [self.lineArray removeAllObjects];
 
-    if (self.drawEnded) self.drawEnded();
-}
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (self.drawEnded) self.drawEnded();
+    });}
+
+
 #pragma mark  - 数据
 - (NSDictionary *)data
 {
