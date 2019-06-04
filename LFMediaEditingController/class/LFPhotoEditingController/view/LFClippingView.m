@@ -858,7 +858,7 @@ NSString *const kLFClippingViewData_zoomingView = @"LFClippingViewData_zoomingVi
 /** 设置绘画线粗 */
 - (void)setDrawLineWidth:(CGFloat)lineWidth
 {
-    [self.zoomingView setDrawLineWidth:lineWidth/self.zoomScale];
+    [self.zoomingView setDrawLineWidth:lineWidth/*/self.zoomScale*/];
 }
 
 #pragma mark - 贴图功能
