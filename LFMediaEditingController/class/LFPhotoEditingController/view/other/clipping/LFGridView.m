@@ -204,19 +204,23 @@ const CGFloat kControlWidth = 30.f;
         if (!CGSizeEqualToSize(size, CGSizeZero)) {
             CGRect gridRect = self.gridRect;
             /** 计算比例后高度 */
-            CGFloat newHeight = gridRect.size.width * (size.height/size.width);
-            /** 超出最大高度计算 */
-            if (newHeight > _controlMaxRect.size.height) {
-                CGFloat newWidth = gridRect.size.width * (_controlMaxRect.size.height/newHeight);
+            CGFloat newHeight = gridRect.size.height ;
+            CGFloat newWidth = gridRect.size.width ;
+            if (size.height/size.width > newHeight/newWidth) {
+                //变得更窄
+                newWidth = newHeight * (size.width/size.height);
                 CGFloat diffWidth = gridRect.size.width - newWidth;
-                gridRect.size.width = newWidth;
                 gridRect.origin.x = gridRect.origin.x + diffWidth/2;
-                newHeight = _controlMaxRect.size.height;
             }
-            CGFloat diffHeight = gridRect.size.height - newHeight;
+            else {
+                newHeight = newWidth * (size.height/size.width);
+                CGFloat diffHeight = gridRect.size.height - newHeight;
+                gridRect.origin.y = gridRect.origin.y + diffHeight/2;
+            }
+           
             gridRect.size.height = newHeight;
-            gridRect.origin.y = gridRect.origin.y + diffHeight/2;
-            
+            gridRect.size.width = newWidth;
+
             [self setGridRect:gridRect maskLayer:NO];
             
             if ([self.delegate respondsToSelector:@selector(lf_gridViewDidAspectRatio:)]) {
